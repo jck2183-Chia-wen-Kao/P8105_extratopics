@@ -79,3 +79,90 @@ dynamite_words %>%
     ## Selecting by n
 
 <img src="p8105_tidytext_files/figure-gfm/unnamed-chunk-4-1.png" width="90%" />
+
+## Compare across groups
+
+Groups I want to compare are 1 star ad 5 star reviews.
+
+Let’s count words in group.
+
+``` r
+dynamite_words %>% 
+    filter(stars %in% c(1, 5)) %>% 
+    group_by(stars) %>% 
+    count(word) %>% 
+    top_n(5)
+```
+
+    ## Selecting by n
+
+    ## # A tibble: 11 x 3
+    ## # Groups:   stars [2]
+    ##    stars word        n
+    ##    <dbl> <chr>   <int>
+    ##  1     1 bad         7
+    ##  2     1 dumb        8
+    ##  3     1 dvd         7
+    ##  4     1 movie      50
+    ##  5     1 time        9
+    ##  6     1 watch       8
+    ##  7     5 classic   102
+    ##  8     5 funny     124
+    ##  9     5 love      139
+    ## 10     5 movie     429
+    ## 11     5 time       99
+
+``` r
+dynamite_words %>% 
+    filter(stars %in% c(1, 5)) %>% 
+    group_by(stars) %>% 
+    summarise(n = n())
+```
+
+    ## `summarise()` ungrouping output (override with `.groups` argument)
+
+    ## # A tibble: 2 x 2
+    ##   stars     n
+    ##   <dbl> <int>
+    ## 1     1   648
+    ## 2     5  4477
+
+We now need an “odds ratio”
+
+``` r
+word_ratios = 
+    dynamite_words %>% 
+    filter(stars %in% c(1, 5)) %>% 
+    count(word, stars) %>% 
+    group_by(word) %>% 
+    filter(sum(n) >= 5) %>% 
+    ungroup(word) %>% 
+    pivot_wider(
+        names_from = stars, 
+        values_from = n,
+        names_prefix = "stars_", 
+        values_fill = 0
+    ) %>% 
+    mutate(
+        stars_1_odds = (stars_1 + 1) / (sum(stars_1) + 1), 
+        stars_5_odds = (stars_5 + 1) / (sum(stars_5) + 1), 
+        log_OR = log(stars_5_odds / stars_1_odds)
+    )
+```
+
+Can we do something useful with this?
+
+``` r
+word_ratios %>% 
+    mutate(pos_log_OR = ifelse(log_OR > 0, "5 stars > 1 star", 
+                               "1 star > 5 stars")) %>% 
+    group_by(pos_log_OR) %>% 
+    top_n(10, abs(log_OR)) %>% 
+    ungroup() %>% 
+    mutate(word = fct_reorder(word, log_OR)) %>% 
+    ggplot(aes(x = word, y = log_OR, fill = pos_log_OR)) +
+    geom_bar(stat = "identity") + 
+    coord_flip()
+```
+
+<img src="p8105_tidytext_files/figure-gfm/unnamed-chunk-8-1.png" width="90%" />
