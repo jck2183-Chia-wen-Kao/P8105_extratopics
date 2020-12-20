@@ -91,41 +91,40 @@ dynamite_words %>%
     filter(stars %in% c(1, 5)) %>% 
     group_by(stars) %>% 
     count(word) %>% 
-    top_n(5)
+    top_n(5) %>% 
+    knitr::kable()
 ```
 
     ## Selecting by n
 
-    ## # A tibble: 11 x 3
-    ## # Groups:   stars [2]
-    ##    stars word        n
-    ##    <dbl> <chr>   <int>
-    ##  1     1 bad         7
-    ##  2     1 dumb        8
-    ##  3     1 dvd         7
-    ##  4     1 movie      50
-    ##  5     1 time        9
-    ##  6     1 watch       8
-    ##  7     5 classic   102
-    ##  8     5 funny     124
-    ##  9     5 love      139
-    ## 10     5 movie     429
-    ## 11     5 time       99
+| stars | word    |   n |
+| ----: | :------ | --: |
+|     1 | bad     |   7 |
+|     1 | dumb    |   8 |
+|     1 | dvd     |   7 |
+|     1 | movie   |  50 |
+|     1 | time    |   9 |
+|     1 | watch   |   8 |
+|     5 | classic | 102 |
+|     5 | funny   | 124 |
+|     5 | love    | 139 |
+|     5 | movie   | 429 |
+|     5 | time    |  99 |
 
 ``` r
 dynamite_words %>% 
     filter(stars %in% c(1, 5)) %>% 
     group_by(stars) %>% 
-    summarise(n = n())
+    summarise(n = n()) %>% 
+    knitr::kable()
 ```
 
     ## `summarise()` ungrouping output (override with `.groups` argument)
 
-    ## # A tibble: 2 x 2
-    ##   stars     n
-    ##   <dbl> <int>
-    ## 1     1   648
-    ## 2     5  4477
+| stars |    n |
+| ----: | ---: |
+|     1 |  648 |
+|     5 | 4477 |
 
 We now need an “odds ratio”
 
@@ -166,3 +165,67 @@ word_ratios %>%
 ```
 
 <img src="p8105_tidytext_files/figure-gfm/unnamed-chunk-8-1.png" width="90%" />
+
+## Sentiment analysis
+
+Load lexicon
+
+``` r
+bing_sentiments = get_sentiments("bing")
+```
+
+Get sentiments for dynamite reviews.
+
+``` r
+dynamite_sentiments =
+    inner_join(dynamite_words, bing_sentiments) %>% 
+    count(review_num, sentiment) %>% 
+    pivot_wider(
+        names_from = sentiment, 
+        values_from = n, 
+        values_fill = 0
+    ) %>% 
+    mutate(
+        review_sentiment = positive - negative
+    ) %>% 
+    select(review_num, review_sentiment)
+```
+
+    ## Joining, by = "word"
+
+Combine with full data
+
+``` r
+dynamite_sentiments =
+    left_join(dynamite_sentiments, dynamite_reviews) %>% 
+    select(-urls)
+```
+
+    ## Joining, by = "review_num"
+
+``` r
+dynamite_sentiments %>% 
+    mutate(
+        review_num = factor(review_num), 
+        review_num = fct_reorder(review_num, review_sentiment)) %>% 
+    ggplot(aes(x = review_num, y = review_sentiment, 
+               fill = stars)) +
+    geom_bar(stat = "identity") +
+    theme(
+        axis.title.x = element_blank(), 
+        axis.text.x = element_blank(), 
+        axis.ticks.x = element_blank()
+        )
+```
+
+<img src="p8105_tidytext_files/figure-gfm/unnamed-chunk-12-1.png" width="90%" />
+
+Can we look at positive and negative reviews?
+
+``` r
+dynamite_sentiments %>% 
+    filter(review_sentiment == max(review_sentiment)) %>% 
+    pull(text)
+```
+
+    ## [1] "love love love love love. We watch this twice a week and even had a Napoleon Dynamite party complete with corn dogs and tater tots. FUN!!"
